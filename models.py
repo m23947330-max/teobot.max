@@ -31,3 +31,13 @@ class Movie(db.Model):
             'message_id': self.message_id
         }
 
+
+class User(db.Model):
+    __tablename__ = 'users'
+
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.String(100), unique=True, nullable=False)
+    first_name = db.Column(db.String(255))
+    username = db.Column(db.String(255))
+    interaction_count = db.Column(db.Integer, default=0)
+    last_seen = db.Column(db.DateTime, default=datetime.utcnow)
