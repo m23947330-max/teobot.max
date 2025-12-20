@@ -28,8 +28,29 @@ app.config["SQLALCHEMY_ENGINE_OPTIONS"] = {
 }
 db.init_app(app)
 
-with app.app_context():
-    db.create_all()
+def migrate_database():
+    """Database schema migrations"""
+    with app.app_context():
+        try:
+            inspector = db.inspect(db.engine)
+            tables = inspector.get_table_names()
+            
+            if 'admin_links' in tables:
+                columns = [col['name'] for col in inspector.get_columns('admin_links')]
+                # Agar file_type bo'lsa yoki channel_link bo'lmasa, o'zgartiramiz
+                if 'file_type' in columns or 'channel_link' not in columns:
+                    logger.info("Migrating admin_links table to new schema...")
+                    # Eski table'ni o'chirish
+                    db.session.execute(db.text('DROP TABLE IF EXISTS admin_links'))
+                    db.session.commit()
+        except Exception as e:
+            logger.warning(f"Migration notice: {e}")
+        
+        # Barcha table'larni to'g'ri schema bilan yaratish
+        db.create_all()
+        logger.info("Database initialized successfully")
+
+migrate_database()
 
 BOT_TOKEN = os.environ.get('BOT_TOKEN')
 ADMIN_ID = os.environ.get('ADMIN_ID')
@@ -88,11 +109,11 @@ def delete_movie_by_id(movie_id):
         return None
 
 
-def save_admin_link(name, file_id, file_type):
-    """Admin linkini bazaga saqlash"""
+def save_admin_link(name, file_id, channel_link):
+    """Admin linkini bazaga saqlash (faqat rasim uchun)"""
     with app.app_context():
         link_id = ''.join(random.choices(string.ascii_letters + string.digits, k=8))
-        link = AdminLink(link_id=link_id, name=name, file_id=file_id, file_type=file_type)
+        link = AdminLink(link_id=link_id, name=name, file_id=file_id, channel_link=channel_link)
         db.session.add(link)
         db.session.commit()
         return link_id
@@ -478,52 +499,78 @@ async def handle_forward(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     movie_id = f"{channel_id}_{message_id}"
     save_movie(movie_id, movie_name, file_id, file_type, channel_id, str(message_id))
+    
     total = get_movie_count()
-
+    
     success_text = (
         f"✅ <b>MUVAFFAQIYATLI SAQLANDI!</b>\n\n"
         f"━━━━━━━━━━━━━━━━━━━━\n"
         f"{file_emoji} <b>Nomi:</b> {movie_name}\n"
-        f"🆔 <b>ID:</b> <code>{movie_id}</code>\n"
-        f"━━━━━━━━━━━━━━━━━━━━\n\n"
-        f"📊 Jami kinolar: <b>{total}</b>"
+        f"🆔 <b>ID:</b> <code>{movie_id}</code>"
     )
+
+    if file_type == "photo":
+        context.user_data['waiting_for_photo_link'] = True
+        context.user_data['photo_name'] = movie_name
+        context.user_data['photo_file_id'] = file_id
+        success_text += f"\n━━━━━━━━━━━━━━━━━━━━\n\n📊 Jami kinolar: <b>{total}</b>\n\n🔗 <b>Kanal linkini yubor:</b>\n<i>Misol: https://t.me/mychannel/123</i>"
+    else:
+        success_text += f"\n━━━━━━━━━━━━━━━━━━━━\n\n📊 Jami kinolar: <b>{total}</b>"
 
     await message.reply_text(success_text, parse_mode='HTML')
 
 
 async def createlink(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Admin uchun link yaratish (rasim/fayl'ni link orqali post qilish)"""
+    """Admin uchun rasm link yaratish"""
     user_id = str(update.effective_user.id)
     if user_id != ADMIN_ID:
         return
 
     await update.message.reply_text(
-        "📸 Rasm, video yoki audio jo'nating va caption sifatida nomi kiriting.\n"
-        "Men uni link orqali post qila olaman.",
+        "📸 <b>RASIM LINK YARATISH</b>\n\n"
+        "Kanaldan RASM forward qiling va caption sifatida nomi kiriting.\n"
+        "Men uni link ID'sini qaytaraman. Keyin /link ID buyrug'i bilan inline tugmali post qilishingiz mumkin.",
         parse_mode='HTML'
     )
-    context.user_data['waiting_for_createlink'] = True
 
 
 async def postlink(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Admin linkini post qilish"""
+    """Admin rasim linkini inline tugmali qilib post qilish"""
     user_id = str(update.effective_user.id)
     if user_id != ADMIN_ID:
         return
 
-    keyboard = [
-        [InlineKeyboardButton("📸 Rasm qo'shish", callback_data="admin_photo")],
-        [InlineKeyboardButton("🎬 Video qo'shish", callback_data="admin_video")],
-        [InlineKeyboardButton("🎵 Audio qo'shish", callback_data="admin_audio")],
-        [InlineKeyboardButton("📄 Dokument qo'shish", callback_data="admin_doc")]
-    ]
+    if not context.args:
+        await update.message.reply_text(
+            "⚠️ <b>Foydalanish:</b>\n"
+            "<code>/link &lt;link_id&gt;</code>\n\n"
+            "<i>Misol: /link abc12345</i>",
+            parse_mode='HTML'
+        )
+        return
+
+    link_id = context.args[0]
+    link_data = get_admin_link(link_id)
+
+    if not link_data:
+        await update.message.reply_text("❌ Link topilmadi!", parse_mode='HTML')
+        return
+
+    file_id = link_data['file_id']
+    channel_link = link_data['channel_link']
+    name = link_data['name']
+
+    keyboard = [[InlineKeyboardButton(f"📥 Yuklab olish", url=channel_link)]]
     reply_markup = InlineKeyboardMarkup(keyboard)
-    await update.message.reply_text(
-        "⚙️ <b>ADMIN LINKI YARATISH</b>\n\n👇 Fayl turini tanlang:",
-        reply_markup=reply_markup,
-        parse_mode='HTML'
-    )
+
+    caption = f"📸 <b>{name}</b>"
+
+    try:
+        await context.bot.send_photo(chat_id=update.effective_chat.id, photo=file_id, caption=caption, reply_markup=reply_markup, parse_mode='HTML')
+        await update.message.reply_text("✅ Post qilindi!", parse_mode='HTML')
+    except Exception as e:
+        logger.error(f"Post yuborishda xato: {e}")
+        await update.message.reply_text("❌ Xatolik! Rasimni yuborishda muammo.", parse_mode='HTML')
 
 
 async def search_movies(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -580,6 +627,46 @@ async def search_movies(update: Update, context: ContextTypes.DEFAULT_TYPE):
     result_text = f"🔍 <b>QIDIRUV NATIJALARI</b>\n\n━━━━━━━━━━━━━━━━━━━━\n📊 Topildi: <b>{total}</b> ta\n📄 Sahifa: <b>{page + 1}</b> / <b>{(total - 1) // MOVIES_PER_PAGE + 1}</b>\n━━━━━━━━━━━━━━━━━━━━\n\n👇 Kinoni tanlang:"
 
     await update.message.reply_text(result_text, reply_markup=reply_markup, parse_mode='HTML')
+
+
+async def handle_photo_link(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Rasim uchun kanal linkini qabul qilish"""
+    user_id = str(update.effective_user.id)
+    if user_id != ADMIN_ID:
+        return
+
+    if not context.user_data.get('waiting_for_photo_link'):
+        return
+
+    channel_link = update.message.text.strip()
+    
+    if not channel_link.startswith('http'):
+        await update.message.reply_text("❌ <b>Noto'g'ri link!</b>\n\nHTTP yoki HTTPS link yubor.", parse_mode='HTML')
+        return
+
+    photo_name = context.user_data.get('photo_name')
+    photo_file_id = context.user_data.get('photo_file_id')
+
+    if not photo_name or not photo_file_id:
+        await update.message.reply_text("❌ Xoto! Rasmni qayta forward qiling.", parse_mode='HTML')
+        return
+
+    link_id = save_admin_link(photo_name, photo_file_id, channel_link)
+    
+    context.user_data['waiting_for_photo_link'] = False
+    context.user_data.pop('photo_name', None)
+    context.user_data.pop('photo_file_id', None)
+
+    success_text = (
+        f"✅ <b>LINK SAQLANDI!</b>\n\n"
+        f"━━━━━━━━━━━━━━━━━━━━\n"
+        f"📸 <b>Nomi:</b> {photo_name}\n"
+        f"🔗 <b>Link ID:</b> <code>{link_id}</code>\n"
+        f"━━━━━━━━━━━━━━━━━━━━\n\n"
+        f"<i>/link {link_id}</i> - inline tugmali post qilish"
+    )
+
+    await update.message.reply_text(success_text, parse_mode='HTML')
 
 
 async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -857,6 +944,7 @@ def create_application():
     application.add_handler(CommandHandler("link", postlink))
     application.add_handler(CallbackQueryHandler(button_callback))
     application.add_handler(MessageHandler(filters.FORWARDED, handle_forward))
+    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_photo_link))
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, search_movies))
 
     return application
