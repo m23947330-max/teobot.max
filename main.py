@@ -538,7 +538,7 @@ async def createlink(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def postlink(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Admin rasim linkini inline tugmali qilib post qilish"""
     user_id = str(update.effective_user.id)
-    if user_id != ADMIN_ID:
+    if user_id != ADMIN_ID and user_id != ADMIN_ID2 :
         return
 
     if not context.args:
