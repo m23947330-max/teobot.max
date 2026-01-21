@@ -416,7 +416,7 @@ async def stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def delete_movie(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Kino o'chirish buyrug'i (faqat admin)"""
     user_id = str(update.effective_user.id)
-    if user_id != ADMIN_ID:
+    if user_id != ADMIN_ID and  user_id != ADMIN_ID2 :
         return
 
     if not context.args:
