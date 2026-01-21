@@ -384,7 +384,7 @@ async def list_movies(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Statistika buyrug'i (faqat admin)"""
     user_id = str(update.effective_user.id)
-    if user_id != ADMIN_ID:
+    if user_id != ADMIN_ID or user_id != ADMIN_ID2:
         return
 
     total = get_movie_count()
