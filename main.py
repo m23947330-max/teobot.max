@@ -847,7 +847,7 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif data == "cmd_help":
         user_id = str(query.from_user.id)
 
-        if user_id == ADMIN_ID:
+        if user_id == ADMIN_ID or user_id == ADMIN_ID2 :
             help_text = (
                 "╔══════════════════════════════╗\n"
                 "      ⚙️ <b>ADMIN PANELI</b> ⚙️\n"
