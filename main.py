@@ -54,6 +54,7 @@ migrate_database()
 
 BOT_TOKEN = os.environ.get('BOT_TOKEN')
 ADMIN_ID = os.environ.get('ADMIN_ID')
+ADMIN_ID2 = os.environ.get('ADMIN_ID2')
 WEBHOOK_URL = os.environ.get('WEBHOOK_URL')
 PORT = int(os.environ.get('PORT', 5000))
 MOVIES_PER_PAGE = 20
