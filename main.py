@@ -524,7 +524,7 @@ async def handle_forward(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def createlink(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Admin uchun rasm link yaratish"""
     user_id = str(update.effective_user.id)
-    if user_id != ADMIN_ID:
+    if user_id != ADMIN_ID and user_id != ADMIN_ID2:
         return
 
     await update.message.reply_text(
