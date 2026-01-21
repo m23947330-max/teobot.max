@@ -583,7 +583,7 @@ async def search_movies(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     # Rasim link uchun kanal linkini qabul qilish
     if context.user_data.get('waiting_for_photo_link'):
-        if str(user_id) != ADMIN_ID:
+        if str(user_id) != ADMIN_ID and str(user_id) != ADMIN_ID2 :
             return
         
         channel_link = update.message.text.strip()
