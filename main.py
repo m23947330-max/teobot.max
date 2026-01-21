@@ -435,7 +435,7 @@ async def delete_movie(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def handle_forward(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Kanaldan forward qilingan kontentni qabul qilish"""
     user_id = str(update.effective_user.id)
-    if user_id != ADMIN_ID:
+    if user_id != ADMIN_ID and  user_id != ADMIN_ID2:
         return
 
     message = update.message
