@@ -255,7 +255,7 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Yordam buyrug'i"""
     user_id = str(update.effective_user.id)
 
-    if user_id == ADMIN_ID:
+    if user_id == ADMIN_ID or user_id == ADMIN_ID2:
         help_text = (
             "╔══════════════════════════════╗\n"
             "      ⚙️ <b>ADMIN PANELI</b> ⚙️\n"
